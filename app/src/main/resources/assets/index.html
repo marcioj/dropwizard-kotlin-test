@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Blog</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+    crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script>
+    Babel.registerPreset("preact", {
+      plugins: [
+        [
+          Babel.availablePlugins["transform-react-jsx"],
+          {
+            pragma: "h",
+            pragmaFrag: "Fragment",
+          },
+        ],
+      ],
+    });
+  </script>
+  <script type="text/babel" data-type="module" data-presets="preact">
+    import { h, render, Fragment } from "https://esm.sh/preact";
+    import { useEffect, useState } from "https://esm.sh/preact/hooks";
+    import {
+      LocationProvider,
+      ErrorBoundary,
+      Router,
+      Route,
+      useLocation,
+    } from "https://esm.sh/preact-iso";
+
+    function request(url, config = {}) {
+      return fetch(url, {
+        headers: { 'Content-Type': 'application/json' },
+        ...config
+      }).then(res => {
+        return res.json().then(result => {
+          if (res.ok) {
+            return result
+          }
+          return Promise.reject(result)
+        })
+      })
+    }
+
+    const usePromise = (callback, deps = []) => {
+      const [isLoading, setLoading] = useState(true);
+      const [value, setValue] = useState(null);
+      const [error, setError] = useState(null);
+
+      useEffect(() => {
+        const promise = callback();
+
+        promise
+          .then(
+            (value) => setValue(value),
+            (error) => setError(error)
+          )
+          .then(() => setLoading(false));
+
+        setLoading(true);
+      }, [...deps]);
+
+      return { isLoading, value, error };
+    };
+
+    function PostList() {
+      const {
+        value: posts,
+        isLoading,
+        error,
+      } = usePromise(() => request("/api/posts"))
+
+      if (isLoading) return <Loading />;
+
+      return (
+        <div>
+          {posts.map((post) => (
+            <section key={post.id}>
+              <h3>
+                <a href={`/posts/${post.id}`}>{post.title}</a>
+              </h3>
+            </section>
+          ))}
+        </div>
+      );
+    }
+
+    function PenToSquare() {
+      const size = "20px"
+      return (
+        <svg width={size} height={size} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path d="M441 58.9L453.1 71c9.4 9.4 9.4 24.6 0 33.9L424 134.1 377.9 88 407 58.9c9.4-9.4 24.6-9.4 33.9 0zM209.8 256.2L344 121.9 390.1 168 255.8 302.2c-2.9 2.9-6.5 5-10.4 6.1l-58.5 16.7 16.7-58.5c1.1-3.9 3.2-7.5 6.1-10.4zM373.1 25L175.8 222.2c-8.7 8.7-15 19.4-18.3 31.1l-28.6 100c-2.4 8.4-.1 17.4 6.1 23.6s15.2 8.5 23.6 6.1l100-28.6c11.8-3.4 22.5-9.7 31.1-18.3L487 138.9c28.1-28.1 28.1-73.7 0-101.8L474.9 25C446.8-3.1 401.2-3.1 373.1 25zM88 64C39.4 64 0 103.4 0 152L0 424c0 48.6 39.4 88 88 88l272 0c48.6 0 88-39.4 88-88l0-112c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 112c0 22.1-17.9 40-40 40L88 464c-22.1 0-40-17.9-40-40l0-272c0-22.1 17.9-40 40-40l112 0c13.3 0 24-10.7 24-24s-10.7-24-24-24L88 64z" /></svg>
+      )
+    }
+
+    function FormError({ errors }) {
+      return (
+        <>
+          {errors?.map(error => <div className="invalid-feedback" key={error}>{error}</div>)}
+        </>
+      )
+    }
+
+    function PostForm({ post = {}, url, method, onSuccess, onError, cancelUrl }) {
+      const [isSubmitting, setSubmitting] = useState(false);
+      const [errors, setErrors] = useState({})
+
+      const handleError = (response) => {
+        const errors = response.errors.reduce((memo, error) => {
+          memo[error.field] ||= []
+          memo[error.field].push(error.message)
+          return memo
+        }, {})
+        setErrors(errors)
+        onError?.(response)
+      }
+
+      const handleSubmit = (evt) => {
+        evt.preventDefault();
+        setSubmitting(true);
+
+        const newPost = Object.fromEntries(new FormData(evt.target));
+
+        request(url, {
+          headers: { "Content-Type": "application/json" },
+          method,
+          body: JSON.stringify(newPost),
+        })
+          .then(onSuccess, handleError)
+          .finally(() => setSubmitting(false));
+      };
+
+      return (
+        <form onSubmit={handleSubmit} method="post" action="">
+          <div className="mb-3">
+            <label htmlFor="title" className="form-label">Title</label>
+            <input id="title" className={`form-control ${errors.title ? 'is-invalid' : ''}`} type="text" name="title" defaultValue={post.title} />
+            <FormError errors={errors.title} />
+          </div>
+          <div className="mb-3">
+            <label htmlFor="content" className="form-label">Content</label>
+            <textarea id="content" className={`form-control ${errors.content ? 'is-invalid' : ''}`} name="content" defaultValue={post.content} rows="3" />
+            <FormError errors={errors.content} />
+          </div>
+          <div>
+            <button className="btn btn-primary" type="submit" disabled={isSubmitting}>
+              Save
+            </button>
+            <a class="btn btn-link" href={cancelUrl}>Cancel</a>
+          </div>
+        </form>
+      );
+    }
+
+    function PostEdit({ id }) {
+      const { route } = useLocation();
+      const {
+        value: post,
+        isLoading,
+        error,
+      } = usePromise(
+        () => request(`/api/posts/${id}`),
+        [id]
+      );
+
+      if (isLoading) return <Loading />;
+
+      return (
+        <div>
+          <PostForm
+            post={post}
+            url={`/api/posts/${id}`}
+            method="put"
+            onSuccess={() => route(`/posts/${id}`)}
+            cancelUrl={`/posts/${id}`}
+          />
+        </div>
+      );
+    }
+
+    function PostNew() {
+      const { route } = useLocation();
+
+      return (
+        <div>
+          <PostForm
+            url="/api/posts"
+            method="post"
+            onSuccess={({ id }) => route(`/posts/${id}`)}
+            cancelUrl="/posts"
+          />
+        </div>
+      );
+    }
+
+    function PostShow({ id }) {
+      const { route } = useLocation();
+      const {
+        value: post,
+        isLoading,
+        error,
+      } = usePromise(
+        () => request(`/api/posts/${id}`),
+        [id]
+      );
+
+      if (isLoading) return <Loading />;
+
+      const handleDelete = () => {
+        if (confirm("Are you sure?"))
+          request(`/api/posts/${id}`, { method: "delete" }).then(() => route("/posts"))
+      }
+
+      return (
+        <div>
+          <section>
+            <h3>
+              <span>
+                {post.title}
+              </span>
+              <a class="ms-2" href={`/posts/${post.id}/edit`}><PenToSquare /></a>
+            </h3>
+            <p>{post.content}</p>
+          </section>
+          <div class="mb-2 d-flex align-items-center">
+            <a class="me-4" href="/posts">See all posts</a>
+            <button class="btn btn-danger ms-auto" onClick={handleDelete} type="button">Delete</button>
+          </div>
+        </div>
+      );
+    }
+
+    function Loading() {
+      return <h3>Loading ...</h3>;
+    }
+
+    function App(props) {
+      return (
+        <main className="container">
+          <nav class="navbar navbar-expand-lg">
+            <div class="container-fluid">
+              <a class="navbar-brand" href="/">Blog</a>
+              <a href="/posts/new">Write a new post</a>
+            </div>
+          </nav>
+          <div class="mt-4">
+            <LocationProvider>
+              <Router>
+                <Route path="/" component={PostList} />
+                <Route path="/posts" component={PostList} />
+                <Route path="/posts/new" component={PostNew} />
+                <Route path="/posts/:id" component={PostShow} />
+                <Route path="/posts/:id/edit" component={PostEdit} />
+              </Router>
+            </LocationProvider>
+          </div>
+        </main>
+      );
+    }
+
+    render(<App />, document.body);
+  </script>
+</head>
+
+<body></body>
+
+</html>
