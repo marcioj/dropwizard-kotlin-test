@@ -46,7 +46,7 @@ class CustomJerseyViolationExceptionMapper : ExceptionMapper<JerseyViolationExce
     }
 }
 
-class ServeIndexServlet: HttpServlet() {
+class ServeIndexServlet : HttpServlet() {
     override fun doGet(req: HttpServletRequest, resp: HttpServletResponse) {
         val resource = Resources.getResource("assets/index.html")
         resp.outputStream.write(resource.readBytes())
@@ -68,7 +68,8 @@ class BlogApplication : Application<BlogConfiguration>() {
             SchemaUtils.create(Posts)
             Posts.insert {
                 it[title] = "Introduction to kotlin"
-                it[content] = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum"
+                it[content] =
+                    "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum"
             }
         }
     }
@@ -87,5 +88,4 @@ class BlogApplication : Application<BlogConfiguration>() {
             BlogApplication().run(*if (args.isEmpty()) defaults else args)
         }
     }
-
 }
