@@ -18,7 +18,7 @@ import kotlin.test.assertEquals
 class PostsResourceAcceptanceTest {
     var application = DropwizardAppExtension(
         BlogApplication::class.java,
-        "config.yml"
+        "config/test.yml"
     )
 
     inline fun <reified T> Response.readEntity(): T =

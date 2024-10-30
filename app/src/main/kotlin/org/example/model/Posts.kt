@@ -1,7 +1,6 @@
 package org.example.model;
 
 import jakarta.validation.constraints.Size
-import jakarta.ws.rs.NotFoundException
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -51,6 +50,10 @@ object PostsDAO {
 
     fun deleteAll() = transaction {
         Posts.deleteAll()
+    }
+
+    fun count(): Long = transaction {
+        Posts.select(Posts.id.count()).first()[Posts.id.count()]
     }
 
     private fun toModel(row: ResultRow) =

@@ -7,3 +7,5 @@ build
 .idea
 out
 .kotlin
+
+app/db

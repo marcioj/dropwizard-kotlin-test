@@ -1,0 +1,5 @@
+server:
+  rootPath: "/api/*"
+database:
+  url: jdbc:h2:file:./db/development
+  user: "root"
