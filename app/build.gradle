@@ -42,20 +42,22 @@ dependencies {
     implementation "org.jetbrains.exposed:exposed-jdbc:0.55.0"
     runtimeOnly 'com.h2database:h2:2.3.232'
 
+    implementation 'org.flywaydb:flyway-core:10.20.1'
+
     implementation "com.fasterxml.jackson.module:jackson-module-kotlin:2.5.5-2"
 }
 
 // Apply a specific Java toolchain to ease working on different environments.
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(11)
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
 
 application {
     // Define the main class for the application.
     mainClass = 'org.example.BlogApplication'
-    applicationDefaultJvmArgs = ["-XX:HotswapAgent=fatjar"]
+//    applicationDefaultJvmArgs = ["-XX:HotswapAgent=fatjar"]
 }
 
 tasks.named('test') {

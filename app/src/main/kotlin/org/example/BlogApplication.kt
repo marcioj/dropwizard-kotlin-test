@@ -19,6 +19,7 @@ import org.example.model.PostCreateParams
 import org.example.model.Posts
 import org.example.model.PostsDAO
 import org.example.resources.PostsResource
+import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -71,17 +72,8 @@ class BlogApplication : Application<BlogConfiguration>() {
         Database.connect(dataSource)
         environment.lifecycle().manage(dataSource)
 
-        transaction {
-            SchemaUtils.create(Posts)
-            if (PostsDAO.count() == 0L) {
-                PostsDAO.create(
-                    PostCreateParams(
-                        title = "Introduction to kotlin",
-                        content = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum"
-                    )
-                )
-            }
-        }
+        val flyway = Flyway.configure().dataSource(dataSource).load()
+        flyway.migrate()
     }
 
     companion object {
