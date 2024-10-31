@@ -2,10 +2,10 @@ server:
   rootPath: "/api/*"
   applicationConnectors:
     - type: http
-      port: 3000
+      port: 9000
   adminConnectors:
     - type: http
-      port: 3001
+      port: 9001
 database:
   url: jdbc:h2:mem:test;DB_CLOSE_DELAY=-1
   user: "root"
