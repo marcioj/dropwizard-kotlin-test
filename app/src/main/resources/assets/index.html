@@ -10,6 +10,16 @@
     integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
     crossorigin="anonymous"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "preact": "https://esm.sh/preact@10.23.1",
+        "preact/": "https://esm.sh/preact@10.23.1/",
+        "@preact/signals": "https://esm.sh/@preact/signals@1.3.0?external=preact",
+        "preact-iso": "https://esm.sh/preact-iso?external=preact"
+      }
+    }
+  </script>
   <script>
     Babel.registerPreset("preact", {
       plugins: [
@@ -24,15 +34,16 @@
     });
   </script>
   <script type="text/babel" data-type="module" data-presets="preact">
-    import { h, render, Fragment } from "https://esm.sh/preact";
-    import { useEffect, useState } from "https://esm.sh/preact/hooks";
+    import { h, render, Fragment } from "preact";
+    import { useEffect, useState } from "preact/hooks";
+    import { signal } from "@preact/signals"
     import {
       LocationProvider,
       ErrorBoundary,
       Router,
       Route,
       useLocation,
-    } from "https://esm.sh/preact-iso";
+    } from "preact-iso";
 
     function request(url, config = {}) {
       return fetch(url, {
@@ -169,7 +180,14 @@
         [id]
       );
 
-      if (isLoading) return <Loading />;
+      useEffect(() => {
+        if (!isLoading && !post) {
+          alerts.show('warning', 'Post not found')
+          route("/posts")
+        }
+      }, [isLoading, post])
+
+      if (isLoading || !post) return <Loading />;
 
       return (
         <div>
@@ -177,8 +195,12 @@
             post={post}
             url={`/api/posts/${id}`}
             method="put"
-            onSuccess={() => route(`/posts/${id}`)}
+            onSuccess={() => {
+              alerts.show('success', 'Post updated successfully')
+              route(`/posts/${id}`)
+            }}
             cancelUrl={`/posts/${id}`}
+            onError={(response) => { alerts.show('danger', response.message) }}
           />
         </div>
       );
@@ -192,8 +214,12 @@
           <PostForm
             url="/api/posts"
             method="post"
-            onSuccess={({ id }) => route(`/posts/${id}`)}
+            onSuccess={({ id }) => {
+              alerts.show('success', 'Post created successfully')
+              route(`/posts/${id}`)
+            }}
             cancelUrl="/posts"
+            onError={(response) => { alerts.show('danger', response.message) }}
           />
         </div>
       );
@@ -210,7 +236,14 @@
         [id]
       );
 
-      if (isLoading) return <Loading />;
+      useEffect(() => {
+        if (!isLoading && !post) {
+          alerts.show('warning', 'Post not found')
+          route("/posts")
+        }
+      }, [isLoading, post])
+
+      if (isLoading || !post) return <Loading />;
 
       const handleDelete = () => {
         if (confirm("Are you sure?"))
@@ -240,6 +273,46 @@
       return <h3>Loading ...</h3>;
     }
 
+    const alerts = {
+      nextId: 0,
+      current: signal([]),
+      show(type, content) {
+        this.current.value = [...this.current.value, { id: this.nextId++, type, content }]
+      },
+      remove(id) {
+        this.current.value = this.current.value.filter(item => item.id !== id)
+      }
+    }
+
+    function AlertManager() {
+      return (
+        <div>
+          {alerts.current.value.map(entry => (<Alert key={entry.id} id={entry.id} type={entry.type}>{entry.content}</Alert>))}
+        </div>
+      )
+    }
+
+    function Alert({ id, children, type = 'success' }) {
+      useEffect(() => {
+        setTimeout(() => {
+          alerts.remove(id)
+        }, 3000)
+      }, [id])
+
+      return (<div class={`alert alert-${type} alert-dismissible fade show`} role="alert">
+        {children}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>)
+    }
+
+    function NotFound() {
+      const { route } = useLocation()
+      useEffect(() => {
+        alerts.show('warning', 'Page not found')
+        route("/posts")
+      }, [])
+    }
+
     function App(props) {
       return (
         <main className="container">
@@ -250,6 +323,7 @@
             </div>
           </nav>
           <div class="mt-4">
+            <AlertManager />
             <LocationProvider>
               <Router>
                 <Route path="/" component={PostList} />
@@ -257,6 +331,7 @@
                 <Route path="/posts/new" component={PostNew} />
                 <Route path="/posts/:id" component={PostShow} />
                 <Route path="/posts/:id/edit" component={PostEdit} />
+                <Route default component={NotFound} />
               </Router>
             </LocationProvider>
           </div>

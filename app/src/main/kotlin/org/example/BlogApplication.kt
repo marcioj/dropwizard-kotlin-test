@@ -15,14 +15,9 @@ import jakarta.validation.ConstraintViolation
 import jakarta.ws.rs.core.MediaType
 import jakarta.ws.rs.core.Response
 import jakarta.ws.rs.ext.ExceptionMapper
-import org.example.model.PostCreateParams
-import org.example.model.Posts
-import org.example.model.PostsDAO
 import org.example.resources.PostsResource
 import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.sql.Database
-import org.jetbrains.exposed.sql.SchemaUtils
-import org.jetbrains.exposed.sql.transactions.transaction
 
 class CustomJerseyViolationExceptionMapper : ExceptionMapper<JerseyViolationException> {
     override fun toResponse(exception: JerseyViolationException): Response {
