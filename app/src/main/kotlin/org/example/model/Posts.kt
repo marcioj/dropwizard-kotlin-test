@@ -17,7 +17,7 @@ data class Post(var id: Int, var title: String, var content: String)
 
 data class PostCreateParams(@field:Size(min = 1, max = 256) val title: String, @field:Size(min = 1) val content: String)
 
-data class PostUpdateParams(@field:Size(min = 1, max = 256) val title: String?, val content: String?)
+data class PostUpdateParams(@field:Size(min = 1, max = 256) val title: String?, @field:Size(min = 1) val content: String?)
 
 object PostsDAO {
     fun list() = transaction {

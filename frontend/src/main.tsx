@@ -8,37 +8,8 @@ import {
   useLocation,
 } from "preact-iso";
 import { JSX } from "preact/jsx-runtime";
-
-type Post = {
-  id: number
-  title: string
-  content: string
-}
-
-type ValidationErrorEntry = {
-  field: string
-  message: string
-}
-
-type APIValidationError = {
-  code: string
-  message: string
-  errors: ValidationErrorEntry[]
-}
-
-function request(url: string, config: RequestInit = {}) {
-  return fetch("http://localhost:8080" + url, {
-    headers: { "Content-Type": "application/json" },
-    ...config,
-  }).then((res) => {
-    return res.json().then((result) => {
-      if (res.ok) {
-        return result;
-      }
-      return Promise.reject(result);
-    });
-  });
-}
+import { trpc } from "./client";
+import { APIValidationError, Post } from "./types";
 
 function usePromise<T>(callback: () => Promise<T>, deps: ReadonlyArray<unknown> = []) {
   const [isLoading, setLoading] = useState(true);
@@ -65,9 +36,9 @@ function PostList() {
   const {
     value: posts,
     isLoading,
-  } = usePromise(() => request("/api/posts"));
+  } = usePromise(() => trpc.post.list.query());
 
-  if (isLoading) return <Loading />;
+  if (isLoading || !posts) return <Loading />;
 
   return (
     <div>
@@ -111,14 +82,13 @@ function FormError({ errors }: { errors: string[] }) {
 
 type PostFormParams = {
   post?: Post
-  url: string
-  method: string
   onSuccess: (value: any) => void
+  onSubmit: (formValues: any) => Promise<Post>
   onError: (reason: any) => void
   cancelUrl: string
 }
 
-function PostForm({ post, url, method, onSuccess, onError, cancelUrl }: PostFormParams) {
+function PostForm({ post, onSuccess, onError, onSubmit, cancelUrl }: PostFormParams) {
   type NormalizedErrors = {
     [key: string]: string[]
   };
@@ -126,8 +96,9 @@ function PostForm({ post, url, method, onSuccess, onError, cancelUrl }: PostForm
   const [isSubmitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<NormalizedErrors>({});
 
-  const handleError = (response: APIValidationError) => {
-    const errors = response.errors.reduce<NormalizedErrors>((memo, error) => {
+  const handleError = (response: any) => {
+    const validationError = response.shape as APIValidationError
+    const errors = validationError.errors.reduce<NormalizedErrors>((memo, error) => {
       memo[error.field] ||= [];
       memo[error.field].push(error.message);
       return memo;
@@ -142,11 +113,13 @@ function PostForm({ post, url, method, onSuccess, onError, cancelUrl }: PostForm
 
     const newPost = Object.fromEntries(new FormData(evt.target as HTMLFormElement));
 
-    request(url, {
-      headers: { "Content-Type": "application/json" },
-      method,
-      body: JSON.stringify(newPost),
-    })
+    // for (const key of Object.keys(newPost)) {
+    //   if (typeof newPost[key] === 'string' && newPost[key].length === 0) {
+    //     newPost[key] = null as any
+    //   }
+    // }
+
+    onSubmit(newPost)
       .then(onSuccess, handleError)
       .finally(() => setSubmitting(false));
   };
@@ -200,7 +173,7 @@ function PostEdit({ id }: { id: string }) {
   const {
     value: post,
     isLoading,
-  } = usePromise(() => request(`/api/posts/${id}`), [id]);
+  } = usePromise(() => trpc.post.find.query(id), [id]);
 
   useEffect(() => {
     if (!isLoading && !post) {
@@ -215,8 +188,7 @@ function PostEdit({ id }: { id: string }) {
     <div>
       <PostForm
         post={post}
-        url={`/api/posts/${id}`}
-        method="put"
+        onSubmit={(updatedPost) => trpc.post.update.mutate({ id: Number(id), ...updatedPost })}
         onSuccess={() => {
           alerts.show("success", "Post updated successfully");
           route(`/posts/${id}`);
@@ -236,8 +208,7 @@ function PostNew() {
   return (
     <div>
       <PostForm
-        url="/api/posts"
-        method="post"
+        onSubmit={(newPost) => trpc.post.create.mutate(newPost)}
         onSuccess={({ id }) => {
           alerts.show("success", "Post created successfully");
           route(`/posts/${id}`);
@@ -256,7 +227,7 @@ function PostShow({ id }: { id: string }) {
   const {
     value: post,
     isLoading,
-  } = usePromise(() => request(`/api/posts/${id}`), [id]);
+  } = usePromise(() => trpc.post.find.query(id), [id]);
 
   useEffect(() => {
     if (!isLoading && !post) {
@@ -268,10 +239,9 @@ function PostShow({ id }: { id: string }) {
   if (isLoading || !post) return <Loading />;
 
   const handleDelete = () => {
-    if (confirm("Are you sure?"))
-      request(`/api/posts/${id}`, { method: "delete" }).then(() =>
-        route("/posts")
-      );
+    if (confirm("Are you sure?")) {
+      trpc.post.destroy.mutate(id).then(() => route("/posts"))
+    }
   };
 
   return (
