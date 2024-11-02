@@ -1,5 +1,5 @@
 import { render, ComponentChildren } from "preact";
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useErrorBoundary, useState } from "preact/hooks";
 import { signal } from "@preact/signals";
 import {
   LocationProvider,
@@ -9,7 +9,20 @@ import {
 } from "preact-iso";
 import { JSX } from "preact/jsx-runtime";
 import { trpc } from "./client";
-import { APIValidationError, Post } from "./types";
+import { Post, ValidationErrorData } from "./types";
+import { TRPCClientError } from "@trpc/client";
+import { AppRouter } from "../server";
+
+const isNotFoundError = (error?: TRPCClientError<AppRouter>) => error?.data?.code === "NOT_FOUND"
+
+function whenError<T>(predicate: (error: T) => boolean, matchHandler: (error: T) => any) {
+  return (error: T) => {
+    if (predicate(error)) {
+      return matchHandler(error)
+    }
+    throw error
+  }
+}
 
 function usePromise<T>(callback: () => Promise<T>, deps: ReadonlyArray<unknown> = []) {
   const [isLoading, setLoading] = useState(true);
@@ -29,7 +42,10 @@ function usePromise<T>(callback: () => Promise<T>, deps: ReadonlyArray<unknown> 
     setLoading(true);
   }, [...deps]);
 
-  return { isLoading, value, error };
+  if (error)
+    throw error
+
+  return { isLoading, value };
 };
 
 function PostList() {
@@ -84,11 +100,10 @@ type PostFormParams = {
   post?: Post
   onSuccess: (value: any) => void
   onSubmit: (formValues: any) => Promise<Post>
-  onError: (reason: any) => void
   cancelUrl: string
 }
 
-function PostForm({ post, onSuccess, onError, onSubmit, cancelUrl }: PostFormParams) {
+function PostForm({ post, onSuccess, onSubmit, cancelUrl }: PostFormParams) {
   type NormalizedErrors = {
     [key: string]: string[]
   };
@@ -96,15 +111,19 @@ function PostForm({ post, onSuccess, onError, onSubmit, cancelUrl }: PostFormPar
   const [isSubmitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<NormalizedErrors>({});
 
-  const handleError = (response: any) => {
-    const validationError = response.shape as APIValidationError
-    const errors = validationError.errors.reduce<NormalizedErrors>((memo, error) => {
-      memo[error.field] ||= [];
-      memo[error.field].push(error.message);
-      return memo;
-    }, {});
-    setErrors(errors);
-    onError?.(response);
+  const handleError = (trpcClientError: TRPCClientError<AppRouter>) => {
+    if (trpcClientError.data?.code === "UNPROCESSABLE_CONTENT") {
+      const data = trpcClientError.data as ValidationErrorData
+      const errors = data.errors.reduce<NormalizedErrors>((memo, error) => {
+        memo[error.field] ||= [];
+        memo[error.field].push(error.message);
+        return memo;
+      }, {});
+      setErrors(errors);
+      alerts.show("danger", trpcClientError.message);
+    } else {
+      throw trpcClientError
+    }
   };
 
   const handleSubmit = (evt: JSX.TargetedSubmitEvent<HTMLFormElement>) => {
@@ -173,16 +192,12 @@ function PostEdit({ id }: { id: string }) {
   const {
     value: post,
     isLoading,
-  } = usePromise(() => trpc.post.find.query(id), [id]);
-
-  useEffect(() => {
-    if (!isLoading && !post) {
+  } = usePromise(() => trpc.post.find.query(id).catch(whenError(isNotFoundError, () => {
       alerts.show("warning", "Post not found");
       route("/posts");
-    }
-  }, [isLoading, post]);
+  })), [id]);
 
-  if (isLoading || !post) return <Loading />;
+  if (isLoading) return <Loading />;
 
   return (
     <div>
@@ -194,9 +209,6 @@ function PostEdit({ id }: { id: string }) {
           route(`/posts/${id}`);
         }}
         cancelUrl={`/posts/${id}`}
-        onError={(response) => {
-          alerts.show("danger", response.message);
-        }}
       />
     </div>
   );
@@ -214,9 +226,6 @@ function PostNew() {
           route(`/posts/${id}`);
         }}
         cancelUrl="/posts"
-        onError={(response) => {
-          alerts.show("danger", response.message);
-        }}
       />
     </div>
   );
@@ -227,16 +236,12 @@ function PostShow({ id }: { id: string }) {
   const {
     value: post,
     isLoading,
-  } = usePromise(() => trpc.post.find.query(id), [id]);
-
-  useEffect(() => {
-    if (!isLoading && !post) {
+  } = usePromise(() => trpc.post.find.query(id).catch(whenError(isNotFoundError, () => {
       alerts.show("warning", "Post not found");
       route("/posts");
-    }
-  }, [isLoading, post]);
+  })), [id]);
 
-  if (isLoading || !post) return <Loading />;
+  if (isLoading) return <Loading />;
 
   const handleDelete = () => {
     if (confirm("Are you sure?")) {
@@ -310,16 +315,18 @@ function AlertManager() {
 }
 
 type AlertParams = {
-  id: number
+  id?: number
   children: ComponentChildren
   type: AlertType
 }
 
 function Alert({ id, children, type = "success" }: AlertParams) {
   useEffect(() => {
-    setTimeout(() => {
-      alerts.remove(id);
-    }, 3000);
+    if (typeof id === 'number') {
+      setTimeout(() => {
+        alerts.remove(id);
+      }, 3000);
+    }
   }, [id]);
 
   return (
@@ -346,7 +353,45 @@ function NotFound() {
   return null
 }
 
+function UncaughtError({ error }: { error: TRPCClientError<AppRouter> }) {
+  return (
+    <Alert type="danger">
+      <h4 class="alert-heading">
+        <svg
+          width={18}
+          height={18}
+          xmlns="http://www.w3.org/2000/svg"
+          class="bi bi-exclamation-triangle-fill flex-shrink-0 me-2"
+          viewBox="0 0 16 16"
+          role="img"
+          aria-label="Warning:"
+        >
+          <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z" />
+        </svg>
+        {error.message}
+      </h4>
+      <hr />
+      {error.data ? (
+        <div>
+          <div>
+            <strong class="me-2">Code:</strong><span>{error.data.code}</span>
+          </div>
+          <div>
+            <strong class="me-2">HTTP Status:</strong><span>{error.data.httpStatus}</span>
+          </div>
+          <div>
+            <strong class="me-2">Path:</strong><span>{error.data.path}</span>
+          </div>
+          <pre class="mt-2">{error.data.stack}</pre>
+        </div>
+      ) : null}
+    </Alert>
+  );
+}
+
 function App() {
+  const [error] = useErrorBoundary()
+
   return (
     <main className="container">
       <nav class="navbar navbar-expand-lg">
@@ -358,6 +403,7 @@ function App() {
         </div>
       </nav>
       <div class="mt-4">
+        {error ? <UncaughtError error={error} /> : null}
         <AlertManager />
         <LocationProvider>
           <Router>

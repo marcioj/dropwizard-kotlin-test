@@ -3,17 +3,20 @@ import { createHTTPHandler } from "@trpc/server/adapters/standalone";
 import { z } from "zod";
 import { request } from "../src/utils";
 import { publicProcedure, router } from "./trpc";
-import { Post } from "../src/types";
+import { Post, PostValidator as PostSchema } from "../src/types";
 import { TRPC_URL_PREFIX } from "../src/client";
 
 const appRouter = router({
   post: {
-    list: publicProcedure.query(async () => {
+    list: publicProcedure.output(z.array(PostSchema)).query(async () => {
       return await request<Post[]>("/api/posts");
     }),
-    find: publicProcedure.input(z.string()).query(async ({ input }) => {
-      return await request<Post>(`/api/posts/${input}`);
-    }),
+    find: publicProcedure
+      .input(z.string())
+      .output(PostSchema)
+      .query(async ({ input }) => {
+        return await request<Post>(`/api/posts/${input}`);
+      }),
     create: publicProcedure
       .input(
         z.object({
@@ -21,6 +24,7 @@ const appRouter = router({
           content: z.string(),
         })
       )
+      .output(PostSchema)
       .mutation(async ({ input }) => {
         return await request<Post>(`/api/posts`, {
           method: "post",
@@ -28,13 +32,8 @@ const appRouter = router({
         });
       }),
     update: publicProcedure
-      .input(
-        z.object({
-          id: z.number(),
-          title: z.string(),
-          content: z.string(),
-        })
-      )
+      .input(PostSchema)
+      .output(PostSchema)
       .mutation(async ({ input }) => {
         return await request<Post>(`/api/posts/${input.id}`, {
           method: "put",

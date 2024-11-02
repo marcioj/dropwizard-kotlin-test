@@ -1,4 +1,4 @@
-import { APIValidationError } from './types';
+import { APIError, APIValidationError } from './types';
 
 export function request<T>(url: string, config: RequestInit = {}) {
   return fetch("http://localhost:8080" + url, {
@@ -9,9 +9,9 @@ export function request<T>(url: string, config: RequestInit = {}) {
       if (res.ok) {
         return result as T;
       } else if (res.status === 422) {
-        return Promise.reject(new APIValidationError(result.message, result.code, result.errors))
+        throw new APIValidationError(result.message, result.code, result.errors)
       }
-      return Promise.reject(result)
+      throw new APIError(result.message, result.code)
     });
   });
 }
