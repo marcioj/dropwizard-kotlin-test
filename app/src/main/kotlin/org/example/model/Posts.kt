@@ -1,4 +1,4 @@
-package org.example.model;
+package org.example.model
 
 import jakarta.validation.constraints.Size
 import org.jetbrains.exposed.sql.*
@@ -17,7 +17,7 @@ data class Post(var id: Int, var title: String, var content: String)
 
 data class PostCreateParams(@field:Size(min = 1, max = 256) val title: String, @field:Size(min = 1) val content: String)
 
-data class PostUpdateParams(@field:Size(min = 1, max = 256) val title: String?, @field:Size(min = 1) val content: String?)
+data class PostUpdateParams(@field:Size(min = 1, max = 256) val title: String? = null, @field:Size(min = 1) val content: String? = null)
 
 object PostsDAO {
     fun list() = transaction {

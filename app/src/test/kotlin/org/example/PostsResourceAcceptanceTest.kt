@@ -8,6 +8,7 @@ import jakarta.ws.rs.core.GenericType
 import jakarta.ws.rs.core.Response
 import org.example.model.Post
 import org.example.model.PostCreateParams
+import org.example.model.PostUpdateParams
 import org.example.model.PostsDAO
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -97,5 +98,50 @@ class PostsResourceAcceptanceTest {
         assertEquals("Validation error", response.get("message").asText())
         assertEquals("title", response.get("errors").get(0).get("field").asText())
         assertEquals("size must be between 1 and 256", response.get("errors").get(0).get("message").asText())
+    }
+
+    @Test
+    fun updatePost() {
+        val postId = PostsDAO.create(PostCreateParams(title = "hello", content = "world")).id
+
+        val response = apiClient().path("/posts/$postId")
+            .request()
+            .put(Entity.json(PostUpdateParams(title = "changed")))
+            .readEntity<Post>()
+
+        assertEquals("changed", response.title)
+        assertEquals("world", response.content)
+    }
+
+    @Test
+    fun updatePostNotFound() {
+        val response = apiClient().path("/posts/1")
+            .request()
+            .put(Entity.json(PostUpdateParams(title = "changed")))
+
+        assertEquals(404, response.status)
+    }
+
+    @Test
+    fun deletePost() {
+        val postId = PostsDAO.create(PostCreateParams(title = "hello", content = "world")).id
+
+        val response = apiClient().path("/posts/$postId")
+            .request()
+            .delete()
+            .readEntity<Post>()
+
+        assertEquals("hello", response.title)
+        assertEquals("world", response.content)
+        assertEquals(0, PostsDAO.count())
+    }
+
+    @Test
+    fun deletePostNotFound() {
+        val response = apiClient().path("/posts/1")
+            .request()
+            .delete()
+
+        assertEquals(404, response.status)
     }
 }
